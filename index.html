@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📊 Dashboard Sensor ESP32</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #020c1b 0%, #000 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0f7ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: start;
+      min-height: 100vh;
+    }
+    h1 {
+      margin: 20px 0 10px;
+      text-shadow: 0 0 12px #00baff;
+    }
+    table {
+      width: 95%;
+      border-collapse: collapse;
+      margin: 20px auto;
+      box-shadow: 0 0 20px rgba(0, 180, 255, 0.4);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(0, 20, 40, 0.85);
+      backdrop-filter: blur(8px);
+    }
+    th, td {
+      border-bottom: 1px solid rgba(0, 180, 255, 0.25);
+      padding: 10px 12px;
+      text-align: center;
+      font-size: 15px;
+    }
+    th {
+      background: rgba(0, 120, 200, 0.5);
+      color: #fff;
+      text-shadow: 0 0 8px #00baff;
+    }
+    tr:hover {
+      background: rgba(0, 180, 255, 0.15);
+    }
+    a {
+      color: #64b5f6;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .status {
+      margin-top: 5px;
+      font-size: 14px;
+      color: #77f;
+      text-shadow: 0 0 8px #00baff;
+    }
+  </style>
+</head>
+<body>
+    <div class="status" id="status">Connecting to MQTT...</div>
+
+  <table id="sensorTable">
+    <thead>
+      <tr>
+        <th>Tanggal</th>
+        <th>Waktu (WIB)</th>
+        <th>Pitch</th>
+        <th>Roll</th>
+        <th>VL53 Stereo</th>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        <th>Link Maps</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const broker = "wss://f89f938116df4dee81d5215df5ba4782.s1.eu.hivemq.cloud:8884/mqtt";
+    const options = {
+      username: "intelligent",
+      password: "Penem2018",
+      reconnectPeriod: 3000,
+      protocolVersion: 4
+    };
+
+    const client = mqtt.connect(broker, options);
+    const statusEl = document.getElementById('status');
+    const tbody = document.querySelector('#sensorTable tbody');
+
+    client.on('connect', () => {
+      statusEl.textContent = "✅ Connected to MQTT broker";
+      client.subscribe("sensors/gps/date");
+      client.subscribe("sensors/gps/time_wib");
+      client.subscribe("sensors/gps/latitude");
+      client.subscribe("sensors/gps/longitude");
+      client.subscribe("sensors/mpu/pitch");
+      client.subscribe("sensors/mpu/roll");
+      client.subscribe("sensors/vl53/stereo");
+      client.subscribe("maps");
+    });
+
+    client.on('reconnect', () => statusEl.textContent = "Reconnecting...");
+    client.on('error', (err) => statusEl.textContent = "❌ MQTT Error: " + err.message);
+
+    let rowData = {
+      date: "-", time: "-", pitch: "-", roll: "-", vl53_stereo: "-", lat: "-", lng: "-", maps: "-"
+    };
+
+    client.on('message', (topic, message) => {
+      const value = message.toString();
+      switch (topic) {
+        case "sensors/gps/date": rowData.date = value; break;
+        case "sensors/gps/time_wib": rowData.time = value; break;
+        case "sensors/mpu/pitch": rowData.pitch = value; break;
+        case "sensors/mpu/roll": rowData.roll = value; break;
+        case "sensors/vl53/stereo": rowData.vl53_stereo = value; break;
+        case "sensors/gps/latitude": rowData.lat = value; break;
+        case "sensors/gps/longitude": rowData.lng = value; break;
+        case "maps": rowData.maps = value; break;
+      }
+
+      if (rowData.date !== "-" && rowData.time !== "-" && rowData.lat !== "-" && rowData.lng !== "-") {
+        addRow();
+        rowData = { date: "-", time: "-", lat: "-", lng: "-", pitch: "-", roll: "-", vl53_stereo: "-", maps: "-" };
+      }
+    });
+
+    function addRow() {
+      const row = document.createElement("tr");
+      const mapLink = (rowData.maps && rowData.lat && rowData.lng)
+        ? `<a href="${rowData.maps}" target="_blank">🌍 Lihat</a>` : "-";
+      
+      row.innerHTML = `
+        <td>${rowData.date}</td>
+        <td>${rowData.time}</td>
+        <td>${rowData.pitch}</td>
+        <td>${rowData.roll}</td>
+        <td>${rowData.vl53_stereo}</td>
+        <td>${rowData.lat}</td>
+        <td>${rowData.lng}</td>
+        <td>${mapLink}</td>
+      `;
+      tbody.prepend(row);
+    }
+  </script>
+</body>
+</html>
